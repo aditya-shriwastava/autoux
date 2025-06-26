@@ -10,7 +10,8 @@ dependencies = [
     "torch",
     "torchvision",
     "numpy",
-    "tomlkit"
+    "tomlkit",
+    "pynput"
 ]
 
 [project.optional-dependencies]
