@@ -1,15 +1,10 @@
 import time
 from threading import Thread
-from enum import Enum
 
 from pynput.mouse import Controller, Button
 
-class Mouse:
-    class MouseButton(Enum):
-        LEFT = -1
-        RIGHT = 0
-        MIDDLE = 1
 
+class Mouse:
     def __init__(self, control_hz: float = 50.0):
         """
         control_hz: mouse control frequency in Hz
@@ -65,15 +60,17 @@ class Mouse:
             raise ValueError(f"Invalid button: {button}. Use 'L', 'R', or 'M'.")
         self.controller.release(self.button_map[button])
 
-    def scroll(self, x, y):
+    def scroll(self, dir: int):
         """
-        Scroll the mouse wheel by x and y.
+        Scroll the mouse wheel.
+        dir: 1 for up, -1 for down
         """
-        self.controller.scroll(x, y)
+        dir = 1 if dir > 0 else -1
+        self.controller.scroll(0, dir)
+
+    def get_cursor_position(self):
+        return self.controller.position
 
     def cleanup(self):
-        """
-        Clean up the mouse.
-        """
         self.done = True
         self.control_thread.join()
