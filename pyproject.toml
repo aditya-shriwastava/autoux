@@ -11,6 +11,7 @@ dependencies = [
     "pillow",
     "pynput",
     "mss",
+    "mcap",
 ]
 
 [project.optional-dependencies]
@@ -19,3 +20,4 @@ dev = []
 
 [project.scripts]
 autoux = "autoux.autoux:main"
+record-episode = "autoux.record_episode:main"
