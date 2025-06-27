@@ -7,19 +7,14 @@ name = "autoux"
 version = "0.0.0"
 requires-python = ">=3.8"
 dependencies = [
-    "torch",
-    "torchvision",
     "numpy",
-    "tomlkit",
-    "pynput"
+    "pillow",
+    "pynput",
+    "mss",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "matplotlib",
-    "tqdm",
-    "streamlit"
-]
+dev = []
 
 
 [project.scripts]
