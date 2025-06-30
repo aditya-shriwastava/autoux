@@ -10,7 +10,8 @@ class Screen:
 
     def capture(self, cursor_pos: tuple[int, int] = None):
         """
-        Capture the current screen and return it as a NumPy array (H, W, 3 RGB, dtype=uint8), with the mouse cursor overlaid if cursor_pos is not None.
+        Capture the current screen and return it as a NumPy array (H, W, 3 RGB, dtype=uint8),
+        with the mouse cursor overlaid if cursor_pos is not None.
         """
 
         img = self.sct.grab(self.monitor)
@@ -27,7 +28,8 @@ class Screen:
 
     def draw_cursor(self, image: Image.Image, x: int, y: int):
         """
-        Draw a circular cursor: black fill with thick white border at the given relative position on the provided PIL image.
+        Draw a circular cursor: black fill with thick white border at the given relative
+        position on the provided PIL image.
         """
         circle_radius = 8
         outline_width = 3

@@ -1,7 +1,7 @@
 import time
 from threading import Thread
 
-from pynput.mouse import Controller, Button
+from pynput.mouse import Button, Controller
 
 
 class Mouse:
@@ -36,7 +36,7 @@ class Mouse:
     def cursor_control_loop(self):
         while not self.done:
             self.controller.move(
-                self.cursor_vx // self.cursor_hz, 
+                self.cursor_vx // self.cursor_hz,
                 self.cursor_vy // self.cursor_hz
             )
             time.sleep(1 / self.cursor_hz)

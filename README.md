@@ -29,3 +29,38 @@ After installation, you can run AutoUX with:
 autoux
 ```
 This will start the agent.
+
+## Development
+
+### Running Tests
+To run the full test suite:
+```bash
+pytest
+```
+
+To run tests with verbose output:
+```bash
+pytest -v
+```
+
+### Code Quality
+
+#### Checking for linting issues:
+```bash
+ruff check
+```
+
+#### Auto-fixing linting issues:
+```bash
+ruff check --fix
+```
+
+#### Code formatting:
+```bash
+ruff format
+```
+
+#### Running all quality checks:
+```bash
+ruff check && ruff format --check
+```
