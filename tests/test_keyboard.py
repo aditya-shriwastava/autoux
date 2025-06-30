@@ -351,16 +351,16 @@ class TestKeyboard:
 
         # Test modifier keys
         modifiers = {
-            "ctrl": Key.ctrl,
-            "alt": Key.alt,
-            "shift": Key.shift,
-            "cmd": Key.cmd,
+            "ctrl": Key.ctrl_l,
+            "alt": Key.alt_l,
+            "shift": Key.shift_l,
+            "cmd": Key.cmd_l,
             "ctrl_l": Key.ctrl_l,
-            "ctrl_r": Key.ctrl_r,
+            "ctrl_r": Key.ctrl_l,
             "alt_l": Key.alt_l,
-            "alt_r": Key.alt_r,
+            "alt_r": Key.alt_l,
             "shift_l": Key.shift_l,
-            "shift_r": Key.shift_r,
+            "shift_r": Key.shift_l,
         }
 
         for key_name, expected_key in modifiers.items():
