@@ -12,6 +12,7 @@ dependencies = [
     "pynput",
     "mss",
     "mcap",
+    "opencv-python",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +22,7 @@ dev = ["pytest>=7.0", "ruff>=0.12.0"]
 [project.scripts]
 autoux = "autoux.autoux:main"
 record-episode = "autoux.record_episode:main"
+replay-episode = "autoux.replay_episode:main"
 
 [tool.ruff]
 # Same as Black.

@@ -15,9 +15,10 @@ from .screen import Screen
 
 
 class EpisodeRecorder:
-    def __init__(self, context: str, hz: float):
+    def __init__(self, context: str, hz: float, jpeg_quality: int = 75):
         self.context = context
         self.hz = hz
+        self.jpeg_quality = jpeg_quality
         self.recording = False
 
         # Initialize components
@@ -42,6 +43,7 @@ class EpisodeRecorder:
 
         # Recording state
         self.start_time = None
+        self.pressed_keys = set()
 
     def setup_mcap(self):
         """Initialize MCAP file and writer"""
@@ -52,20 +54,12 @@ class EpisodeRecorder:
         # Define schemas for different data types
         screen_schema = self.mcap_writer.register_schema(
             name="screen_capture",
-            encoding="json",
-            data=json.dumps({
-                "type": "object",
-                "properties": {
-                    "timestamp": {"type": "number"},
-                    "width": {"type": "integer"},
-                    "height": {"type": "integer"},
-                    "data": {"type": "string"}  # base64 encoded image
-                }
-            }).encode()
+            encoding="jpeg",
+            data=b""  # No schema needed for raw JPEG bytes
         )
 
-        mouse_pos_schema = self.mcap_writer.register_schema(
-            name="mouse_position",
+        cursor_pos_schema = self.mcap_writer.register_schema(
+            name="cursor_position",
             encoding="json",
             data=json.dumps({
                 "type": "object",
@@ -78,7 +72,7 @@ class EpisodeRecorder:
         )
 
         event_schema = self.mcap_writer.register_schema(
-            name="input_event",
+            name="event",
             encoding="json",
             data=json.dumps({
                 "type": "object",
@@ -91,41 +85,26 @@ class EpisodeRecorder:
             }).encode()
         )
 
-        context_schema = self.mcap_writer.register_schema(
-            name="context",
-            encoding="json",
-            data=json.dumps({
-                "type": "object",
-                "properties": {
-                    "context": {"type": "string"}
-                }
-            }).encode()
-        )
 
         # Register channels
         self.screen_channel = self.mcap_writer.register_channel(
             schema_id=screen_schema,
             topic="/screen_capture",
-            message_encoding="json"
+            message_encoding="jpeg"
         )
 
-        self.mouse_pos_channel = self.mcap_writer.register_channel(
-            schema_id=mouse_pos_schema,
-            topic="/mouse_position",
+        self.cursor_pos_channel = self.mcap_writer.register_channel(
+            schema_id=cursor_pos_schema,
+            topic="/cursor_position",
             message_encoding="json"
         )
 
         self.event_channel = self.mcap_writer.register_channel(
             schema_id=event_schema,
-            topic="/input_events",
+            topic="/events",
             message_encoding="json"
         )
 
-        self.context_channel = self.mcap_writer.register_channel(
-            schema_id=context_schema,
-            topic="/context",
-            message_encoding="json"
-        )
 
     def get_timestamp(self):
         """Get timestamp relative to recording start"""
@@ -134,18 +113,12 @@ class EpisodeRecorder:
         return time.time() - self.start_time
 
     def record_context(self):
-        """Record context information"""
-        timestamp_ns = int(self.get_timestamp() * 1e9)
-        context_data = {
-            "context": self.context
-        }
-
-        self.mcap_writer.add_message(
-            channel_id=self.context_channel,
-            log_time=timestamp_ns,
-            data=json.dumps(context_data).encode(),
-            publish_time=timestamp_ns
-        )
+        """Record context information as metadata"""
+        if self.context:
+            self.mcap_writer.add_metadata(
+                name="context",
+                data={"context": self.context}
+            )
 
     def record_frame(self):
         """Record a single frame of screen capture and mouse position"""
@@ -159,27 +132,19 @@ class EpisodeRecorder:
             # Capture screen without cursor
             screen_img = self.screen.capture()
 
-            # Convert screen image to base64 for storage
-            import base64
+            # Convert screen image to JPEG bytes
             import io
 
             pil_img = Image.fromarray(screen_img)
             buffer = io.BytesIO()
-            pil_img.save(buffer, format='PNG')
-            img_base64 = base64.b64encode(buffer.getvalue()).decode()
+            pil_img.save(buffer, format='JPEG', quality=self.jpeg_quality, optimize=False)
+            jpeg_bytes = buffer.getvalue()
 
-            # Record screen capture
-            screen_data = {
-                "timestamp": timestamp,
-                "width": screen_img.shape[1],
-                "height": screen_img.shape[0],
-                "data": img_base64
-            }
-
+            # Record screen capture as raw JPEG bytes
             self.mcap_writer.add_message(
                 channel_id=self.screen_channel,
                 log_time=timestamp_ns,
-                data=json.dumps(screen_data).encode(),
+                data=jpeg_bytes,
                 publish_time=timestamp_ns
             )
 
@@ -191,7 +156,7 @@ class EpisodeRecorder:
             }
 
             self.mcap_writer.add_message(
-                channel_id=self.mouse_pos_channel,
+                channel_id=self.cursor_pos_channel,
                 log_time=timestamp_ns,
                 data=json.dumps(mouse_data).encode(),
                 publish_time=timestamp_ns
@@ -263,6 +228,21 @@ class EpisodeRecorder:
         if not self.recording:
             return
 
+        # Add key to pressed keys set
+        self.pressed_keys.add(key)
+
+        # Check for Alt+X combination to stop recording
+        from pynput.keyboard import Key
+        alt_pressed = (
+            Key.alt in self.pressed_keys or
+            Key.alt_l in self.pressed_keys or
+            Key.alt_r in self.pressed_keys
+        )
+        if alt_pressed and (hasattr(key, 'char') and key.char == 'x'):
+            print("\nAlt+X pressed - stopping recording...")
+            self.recording = False
+            return
+
         timestamp = self.get_timestamp()
         timestamp_ns = int(timestamp * 1e9)
 
@@ -287,6 +267,9 @@ class EpisodeRecorder:
         """Keyboard release event handler"""
         if not self.recording:
             return
+
+        # Remove key from pressed keys set
+        self.pressed_keys.discard(key)
 
         timestamp = self.get_timestamp()
         timestamp_ns = int(timestamp * 1e9)
@@ -328,7 +311,7 @@ class EpisodeRecorder:
         print(f"Context: {self.context}")
         print(f"Frequency: {self.hz} Hz")
         print(f"Output file: {self.mcap_file}")
-        print("Press Ctrl+C to stop recording")
+        print("Press Ctrl+C or Alt+X to stop recording")
 
         self.recording = True
         self.start_time = time.time()
@@ -364,6 +347,7 @@ class EpisodeRecorder:
                 time.sleep(0.001)  # Small sleep to prevent busy waiting
         except KeyboardInterrupt:
             print("\nStopping recording...")
+        finally:
             self.stop_recording()
 
     def stop_recording(self):
@@ -385,7 +369,14 @@ class EpisodeRecorder:
         # Cleanup mouse controller
         self.mouse_controller.cleanup()
 
+        # Create symlink to latest recording
+        latest_link = self.data_dir / "latest.mcap"
+        if latest_link.exists() or latest_link.is_symlink():
+            latest_link.unlink()
+        latest_link.symlink_to(self.mcap_file.name)
+
         print(f"Recording saved to: {self.mcap_file}")
+        print(f"Latest recording symlink: {latest_link}")
 
 
 def main():
@@ -394,10 +385,12 @@ def main():
                        help="Context description for the episode")
     parser.add_argument("--hz", type=float, default=10.0,
                        help="Recording frequency in Hz (default: 10.0)")
+    parser.add_argument("--jpeg-quality", type=int, default=75,
+                       help="JPEG compression quality 1-100 (default: 75, lower=faster)")
 
     args = parser.parse_args()
 
-    recorder = EpisodeRecorder(args.context, args.hz)
+    recorder = EpisodeRecorder(args.context, args.hz, args.jpeg_quality)
     recorder.start_recording()
 
 
