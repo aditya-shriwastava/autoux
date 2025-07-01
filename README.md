@@ -42,7 +42,7 @@ record-episode [options]
 
 **Example:**
 ```bash
-record-episode --context "web_browsing_demo" --screen-hz 5.0
+record-episode --context "web_browsing_demo" --hz 10.0
 ```
 
 Press `Ctrl+C` to stop recording.
