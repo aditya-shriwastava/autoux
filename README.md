@@ -70,6 +70,9 @@ This generates:
 - Press any key during replay to immediately stop
 - Automatic safety listener prevents runaway replays
 
+**Note on Scroll Behavior:**
+replay-episode after record-episode will replay everything exactly if mouse is used for scroll, but when touchpad is used scroll might be off by a notch.
+
 ## Development
 
 ### Running Tests
