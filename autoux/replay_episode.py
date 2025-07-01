@@ -12,7 +12,8 @@ from pynput import keyboard, mouse
 from pynput.keyboard import Key
 from pynput.mouse import Button
 
-from .mouse import Mouse
+from .actors import CursorActor, EventActor
+from .key_map import mouse_key_map, keyboard_key_map
 
 
 class EpisodeReplayer:
@@ -22,7 +23,8 @@ class EpisodeReplayer:
         self.stop_requested = False
 
         # Initialize controllers
-        self.mouse_controller = Mouse()
+        self.cursor_actor = CursorActor()
+        self.event_actor = EventActor()
         self.keyboard_controller = keyboard.Controller()
         self.mouse_hardware = mouse.Controller()
 
@@ -114,19 +116,11 @@ class EpisodeReplayer:
 
         try:
             if action == 'press':
-                if key_or_button == 'L':
-                    self.mouse_hardware.press(Button.left)
-                elif key_or_button == 'R':
-                    self.mouse_hardware.press(Button.right)
-                elif key_or_button == 'M':
-                    self.mouse_hardware.press(Button.middle)
+                if key_or_button in mouse_key_map:
+                    self.mouse_hardware.press(mouse_key_map[key_or_button])
             elif action == 'release':
-                if key_or_button == 'L':
-                    self.mouse_hardware.release(Button.left)
-                elif key_or_button == 'R':
-                    self.mouse_hardware.release(Button.right)
-                elif key_or_button == 'M':
-                    self.mouse_hardware.release(Button.middle)
+                if key_or_button in mouse_key_map:
+                    self.mouse_hardware.release(mouse_key_map[key_or_button])
             elif action == 'scroll':
                 scroll_direction = int(key_or_button)
                 self.mouse_hardware.scroll(0, scroll_direction)
@@ -164,48 +158,8 @@ class EpisodeReplayer:
 
     def string_to_key(self, key_str):
         """Convert string representation back to pynput key"""
-        # Handle special keys
-        special_keys = {
-            'alt': Key.alt,
-            'alt_l': Key.alt_l,
-            'alt_r': Key.alt_r,
-            'backspace': Key.backspace,
-            'caps_lock': Key.caps_lock,
-            'cmd': Key.cmd,
-            'cmd_l': Key.cmd_l,
-            'cmd_r': Key.cmd_r,
-            'ctrl': Key.ctrl,
-            'ctrl_l': Key.ctrl_l,
-            'ctrl_r': Key.ctrl_r,
-            'delete': Key.delete,
-            'down': Key.down,
-            'end': Key.end,
-            'enter': Key.enter,
-            'esc': Key.esc,
-            'f1': Key.f1, 'f2': Key.f2, 'f3': Key.f3, 'f4': Key.f4,
-            'f5': Key.f5, 'f6': Key.f6, 'f7': Key.f7, 'f8': Key.f8,
-            'f9': Key.f9, 'f10': Key.f10, 'f11': Key.f11, 'f12': Key.f12,
-            'home': Key.home,
-            'insert': Key.insert,
-            'left': Key.left,
-            'menu': Key.menu,
-            'num_lock': Key.num_lock,
-            'page_down': Key.page_down,
-            'page_up': Key.page_up,
-            'pause': Key.pause,
-            'print_screen': Key.print_screen,
-            'right': Key.right,
-            'scroll_lock': Key.scroll_lock,
-            'shift': Key.shift,
-            'shift_l': Key.shift_l,
-            'shift_r': Key.shift_r,
-            'space': Key.space,
-            'tab': Key.tab,
-            'up': Key.up,
-        }
-
-        if key_str in special_keys:
-            return special_keys[key_str]
+        if key_str in keyboard_key_map:
+            return keyboard_key_map[key_str]
         elif len(key_str) == 1:
             return key_str
         else:
@@ -289,7 +243,8 @@ class EpisodeReplayer:
         self.stop_safety_listener()
 
         # Cleanup mouse controller
-        self.mouse_controller.cleanup()
+        self.cursor_actor.cleanup()
+        self.event_actor.cleanup()
 
         print("Replay session ended")
 
@@ -359,7 +314,8 @@ class EpisodeReplayer:
         self._generate_output_files(output_dir, frames, cursor_data, events_data, context)
 
         # Cleanup mouse controller threads
-        self.mouse_controller.cleanup()
+        self.cursor_actor.cleanup()
+        self.event_actor.cleanup()
 
     def _generate_output_files(self, output_dir, frames, cursor_data, events_data, context):
         """Generate all output files in the specified directory"""

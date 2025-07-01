@@ -3,17 +3,16 @@ from mss import mss
 from PIL import Image, ImageDraw
 
 
-class Screen:
+class ScreenObserver:
     def __init__(self):
         self.sct = mss()
         self.monitor = self.sct.monitors[1]
 
     def capture(self, cursor_pos: tuple[int, int] = None):
         """
-        Capture the current screen and return it as a NumPy array (H, W, 3 RGB, dtype=uint8),
+        Capture the primary monitor and return a NumPy array (H, W, 3 RGB, dtype=uint8),
         with the mouse cursor overlaid if cursor_pos is not None.
         """
-
         img = self.sct.grab(self.monitor)
         pil_img = Image.frombytes(
             'RGB',

@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-
+import io
 import argparse
 import json
 import time
+import threading
 from datetime import datetime
 from pathlib import Path
 
 from mcap.writer import Writer
 from PIL import Image
 from pynput import keyboard, mouse
+from pynput.keyboard import Key
+from pynput.mouse import Controller as MouseController
 
-from .mouse import Mouse
-from .screen import Screen
+from .observers import ScreenObserver
+from .utils import Rate
+from .key_map import mouse_key_map
 
 
 class EpisodeRecorder:
@@ -22,15 +26,16 @@ class EpisodeRecorder:
         self.recording = False
 
         # Initialize components
-        self.screen = Screen()
-        self.mouse_controller = Mouse()
+        self.screen = ScreenObserver()
+        # Initialize mouse controller but don't start control threads during recording
+        self.mouse_position_reader = MouseController()
 
         # Data storage
         self.data_dir = Path("data")
         self.data_dir.mkdir(exist_ok=True)
 
         # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y_%m_%d|%H:%M:%S")
         self.mcap_file = self.data_dir / f"record_{timestamp}.mcap"
 
         # MCAP writer
@@ -44,6 +49,14 @@ class EpisodeRecorder:
         # Recording state
         self.start_time = None
         self.pressed_keys = set()
+        
+        # Event buffering for performance
+        self.event_buffer = []
+        self.buffer_lock = threading.Lock()
+        self.flush_timer = None
+        
+        # Create reverse mouse key mapping for button conversion
+        self.reverse_mouse_key_map = {v: k for k, v in mouse_key_map.items()}
 
     def setup_mcap(self):
         """Initialize MCAP file and writer"""
@@ -55,7 +68,7 @@ class EpisodeRecorder:
         screen_schema = self.mcap_writer.register_schema(
             name="screen_capture",
             encoding="jpeg",
-            data=b""  # No schema needed for raw JPEG bytes
+            data=b""
         )
 
         cursor_pos_schema = self.mcap_writer.register_schema(
@@ -79,7 +92,7 @@ class EpisodeRecorder:
                 "properties": {
                     "timestamp": {"type": "number"},
                     "device": {"type": "string"},
-                    "key_or_button": {"type": "string"},
+                    "key": {"type": "string"},
                     "action": {"type": "string"}
                 }
             }).encode()
@@ -126,15 +139,13 @@ class EpisodeRecorder:
             timestamp = self.get_timestamp()
             timestamp_ns = int(timestamp * 1e9)
 
-            # Get mouse position
-            mouse_pos = self.mouse_controller.get_cursor_position()
+            # Get mouse position without active control threads
+            mouse_pos = self.mouse_position_reader.position
 
             # Capture screen without cursor
             screen_img = self.screen.capture()
 
             # Convert screen image to JPEG bytes
-            import io
-
             pil_img = Image.fromarray(screen_img)
             buffer = io.BytesIO()
             pil_img.save(buffer, format='JPEG', quality=self.jpeg_quality, optimize=False)
@@ -161,7 +172,7 @@ class EpisodeRecorder:
                 data=json.dumps(mouse_data).encode(),
                 publish_time=timestamp_ns
             )
-
+            
         except Exception as e:
             print(f"Error recording frame: {e}")
             return False
@@ -175,53 +186,19 @@ class EpisodeRecorder:
         timestamp = self.get_timestamp()
         timestamp_ns = int(timestamp * 1e9)
 
-        button_map = {
-            mouse.Button.left: 'L',
-            mouse.Button.right: 'R',
-            mouse.Button.middle: 'M'
-        }
-
         action = 'press' if pressed else 'release'
-        button_str = button_map.get(button, str(button))
+        button_str = self.reverse_mouse_key_map.get(button, str(button))
 
         event_data = {
             "timestamp": timestamp,
             "device": "mouse",
-            "key_or_button": button_str,
+            "key": button_str,
             "action": action
         }
 
-        self.mcap_writer.add_message(
-            channel_id=self.event_channel,
-            log_time=timestamp_ns,
-            data=json.dumps(event_data).encode(),
-            publish_time=timestamp_ns
-        )
+        # Buffer the event instead of writing immediately
+        self.buffer_event(self.event_channel, timestamp_ns, event_data)
 
-    def on_mouse_scroll(self, x, y, dx, dy):
-        """Mouse scroll event handler"""
-        if not self.recording:
-            return
-
-        timestamp = self.get_timestamp()
-        timestamp_ns = int(timestamp * 1e9)
-
-        # Handle vertical scroll
-        if dy != 0:
-            scroll_dir = 1 if dy > 0 else -1
-            event_data = {
-                "timestamp": timestamp,
-                "device": "mouse",
-                "key_or_button": str(scroll_dir),
-                "action": "scroll"
-            }
-
-            self.mcap_writer.add_message(
-                channel_id=self.event_channel,
-                log_time=timestamp_ns,
-                data=json.dumps(event_data).encode(),
-                publish_time=timestamp_ns
-            )
 
     def on_key_press(self, key):
         """Keyboard press event handler"""
@@ -232,13 +209,12 @@ class EpisodeRecorder:
         self.pressed_keys.add(key)
 
         # Check for Alt+X combination to stop recording
-        from pynput.keyboard import Key
         alt_pressed = (
             Key.alt in self.pressed_keys or
             Key.alt_l in self.pressed_keys or
             Key.alt_r in self.pressed_keys
         )
-        if alt_pressed and (hasattr(key, 'char') and key.char == 'x'):
+        if alt_pressed and key.char == 'x'):
             print("\nAlt+X pressed - stopping recording...")
             self.recording = False
             return
@@ -252,16 +228,12 @@ class EpisodeRecorder:
         event_data = {
             "timestamp": timestamp,
             "device": "keyboard",
-            "key_or_button": key_str,
+            "key": key_str,
             "action": "press"
         }
 
-        self.mcap_writer.add_message(
-            channel_id=self.event_channel,
-            log_time=timestamp_ns,
-            data=json.dumps(event_data).encode(),
-            publish_time=timestamp_ns
-        )
+        # Buffer the event instead of writing immediately
+        self.buffer_event(self.event_channel, timestamp_ns, event_data)
 
     def on_key_release(self, key):
         """Keyboard release event handler"""
@@ -280,16 +252,12 @@ class EpisodeRecorder:
         event_data = {
             "timestamp": timestamp,
             "device": "keyboard",
-            "key_or_button": key_str,
+            "key": key_str,
             "action": "release"
         }
 
-        self.mcap_writer.add_message(
-            channel_id=self.event_channel,
-            log_time=timestamp_ns,
-            data=json.dumps(event_data).encode(),
-            publish_time=timestamp_ns
-        )
+        # Buffer the event instead of writing immediately
+        self.buffer_event(self.event_channel, timestamp_ns, event_data)
 
     def key_to_string(self, key):
         """Convert pynput key to string representation"""
@@ -304,6 +272,41 @@ class EpisodeRecorder:
                 return str(key)
         except:
             return str(key)
+
+    def buffer_event(self, channel_id, timestamp_ns, event_data):
+        """Buffer events to reduce I/O during high-frequency operations"""
+        with self.buffer_lock:
+            self.event_buffer.append((channel_id, timestamp_ns, event_data))
+    
+    def flush_event_buffer(self):
+        """Flush all buffered events to MCAP file"""
+        events_to_flush = []
+        with self.buffer_lock:
+            if not self.event_buffer:
+                return
+            events_to_flush = self.event_buffer.copy()
+            self.event_buffer.clear()
+            
+        for channel_id, timestamp_ns, event_data in events_to_flush:
+            self.mcap_writer.add_message(
+                channel_id=channel_id,
+                log_time=timestamp_ns,
+                data=json.dumps(event_data).encode(),
+                publish_time=timestamp_ns
+            )
+    
+    def start_flush_timer(self):
+        """Start periodic flushing of event buffer every 5 seconds"""
+        if self.recording:
+            self.flush_event_buffer()
+            self.flush_timer = threading.Timer(5.0, self.start_flush_timer)
+            self.flush_timer.start()
+    
+    def stop_flush_timer(self):
+        """Stop the periodic flush timer"""
+        if self.flush_timer:
+            self.flush_timer.cancel()
+            self.flush_timer = None
 
     def start_recording(self):
         """Start the recording session"""
@@ -322,29 +325,29 @@ class EpisodeRecorder:
         # Record context
         self.record_context()
 
-        # Start event listeners
+        # Start periodic buffer flushing
+        self.start_flush_timer()
+        
+        # Start event listeners - ensure events pass through to system
         self.mouse_listener = mouse.Listener(
             on_click=self.on_mouse_click,
-            on_scroll=self.on_mouse_scroll
+            suppress=False  # Allow events to pass through to system
         )
         self.mouse_listener.start()
 
         self.keyboard_listener = keyboard.Listener(
             on_press=self.on_key_press,
-            on_release=self.on_key_release
+            on_release=self.on_key_release,
+            suppress=False  # Allow events to pass through to system
         )
         self.keyboard_listener.start()
 
         try:
-            # Main recording loop - keep screen capture on main thread
-            last_frame_time = time.time()
+            rate = Rate(self.hz)
             while self.recording:
-                current_time = time.time()
-                if current_time - last_frame_time >= (1.0 / self.hz):
-                    if not self.record_frame():
-                        break
-                    last_frame_time = current_time
-                time.sleep(0.001)  # Small sleep to prevent busy waiting
+                if not self.record_frame():
+                    break
+                rate.sleep()
         except KeyboardInterrupt:
             print("\nStopping recording...")
         finally:
@@ -354,20 +357,23 @@ class EpisodeRecorder:
         """Stop the recording session"""
         self.recording = False
 
+        # Stop periodic flushing
+        self.stop_flush_timer()
+
         # Stop listeners
         if self.mouse_listener:
             self.mouse_listener.stop()
         if self.keyboard_listener:
             self.keyboard_listener.stop()
 
+        # Flush any remaining buffered events
+        self.flush_event_buffer()
+
         # Close MCAP file
         if self.mcap_writer:
             self.mcap_writer.finish()
         if self.mcap_file_handle:
             self.mcap_file_handle.close()
-
-        # Cleanup mouse controller
-        self.mouse_controller.cleanup()
 
         # Create symlink to latest recording
         latest_link = self.data_dir / "latest.mcap"
