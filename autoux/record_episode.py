@@ -19,10 +19,11 @@ from .key_map import mouse_key_map
 
 
 class EpisodeRecorder:
-    def __init__(self, context: str, hz: float, jpeg_quality: int = 75):
+    def __init__(self, context: str, hz: float, jpeg_quality: int = 75, verbose: bool = False):
         self.context = context
         self.hz = hz
         self.jpeg_quality = jpeg_quality
+        self.verbose = verbose
         self.recording = False
 
         # Initialize components
@@ -196,6 +197,41 @@ class EpisodeRecorder:
             "action": action
         }
 
+        # Print event if verbose mode is enabled
+        if self.verbose:
+            print(f"Mouse {action}: {button_str} at ({x}, {y})")
+
+        # Buffer the event instead of writing immediately
+        self.buffer_event(self.event_channel, timestamp_ns, event_data)
+
+    def on_mouse_scroll(self, x, y, dx, dy):
+        """Mouse scroll event handler"""
+        if not self.recording:
+            return
+
+        timestamp = self.get_timestamp()
+        timestamp_ns = int(timestamp * 1e9)
+
+        # Determine scroll direction based on dy (vertical scroll)
+        if dy > 0:
+            action = "scroll_up"
+        elif dy < 0:
+            action = "scroll_down"
+        else:
+            # No vertical scroll, ignore horizontal for now
+            return
+
+        event_data = {
+            "timestamp": timestamp,
+            "device": "mouse",
+            "key": "scroll",
+            "action": action
+        }
+
+        # Print event if verbose mode is enabled
+        if self.verbose:
+            print(f"Mouse {action} at ({x}, {y})")
+
         # Buffer the event instead of writing immediately
         self.buffer_event(self.event_channel, timestamp_ns, event_data)
 
@@ -214,7 +250,7 @@ class EpisodeRecorder:
             Key.alt_l in self.pressed_keys or
             Key.alt_r in self.pressed_keys
         )
-        if alt_pressed and key.char == 'x'):
+        if alt_pressed and hasattr(key, 'char') and key.char == 'x':
             print("\nAlt+X pressed - stopping recording...")
             self.recording = False
             return
@@ -231,6 +267,10 @@ class EpisodeRecorder:
             "key": key_str,
             "action": "press"
         }
+
+        # Print event if verbose mode is enabled
+        if self.verbose:
+            print(f"Keyboard press: {key_str}")
 
         # Buffer the event instead of writing immediately
         self.buffer_event(self.event_channel, timestamp_ns, event_data)
@@ -255,6 +295,10 @@ class EpisodeRecorder:
             "key": key_str,
             "action": "release"
         }
+
+        # Print event if verbose mode is enabled
+        if self.verbose:
+            print(f"Keyboard release: {key_str}")
 
         # Buffer the event instead of writing immediately
         self.buffer_event(self.event_channel, timestamp_ns, event_data)
@@ -331,6 +375,7 @@ class EpisodeRecorder:
         # Start event listeners - ensure events pass through to system
         self.mouse_listener = mouse.Listener(
             on_click=self.on_mouse_click,
+            on_scroll=self.on_mouse_scroll,
             suppress=False  # Allow events to pass through to system
         )
         self.mouse_listener.start()
@@ -393,10 +438,12 @@ def main():
                        help="Recording frequency in Hz (default: 10.0)")
     parser.add_argument("--jpeg-quality", type=int, default=75,
                        help="JPEG compression quality 1-100 (default: 75, lower=faster)")
+    parser.add_argument("--verbose", action="store_true",
+                       help="Print events as they happen")
 
     args = parser.parse_args()
 
-    recorder = EpisodeRecorder(args.context, args.hz, args.jpeg_quality)
+    recorder = EpisodeRecorder(args.context, args.hz, args.jpeg_quality, args.verbose)
     recorder.start_recording()
 
 
