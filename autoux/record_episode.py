@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import io
 import argparse
+import io
 import json
-import time
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -13,9 +13,9 @@ from pynput import keyboard, mouse
 from pynput.keyboard import Key
 from pynput.mouse import Controller as MouseController
 
+from .key_map import mouse_key_map
 from .observers import ScreenObserver
 from .utils import Rate
-from .key_map import mouse_key_map
 
 
 class EpisodeRecorder:
@@ -50,12 +50,12 @@ class EpisodeRecorder:
         # Recording state
         self.start_time = None
         self.pressed_keys = set()
-        
+
         # Event buffering for performance
         self.event_buffer = []
         self.buffer_lock = threading.Lock()
         self.flush_timer = None
-        
+
         # Create reverse mouse key mapping for button conversion
         self.reverse_mouse_key_map = {v: k for k, v in mouse_key_map.items()}
 
@@ -173,7 +173,7 @@ class EpisodeRecorder:
                 data=json.dumps(mouse_data).encode(),
                 publish_time=timestamp_ns
             )
-            
+
         except Exception as e:
             print(f"Error recording frame: {e}")
             return False
@@ -214,9 +214,11 @@ class EpisodeRecorder:
 
         # Determine scroll direction based on dy (vertical scroll)
         if dy > 0:
-            action = "scroll_up"
+            action = "scroll"
+            key = "up"
         elif dy < 0:
-            action = "scroll_down"
+            action = "scroll"
+            key = "down"
         else:
             # No vertical scroll, ignore horizontal for now
             return
@@ -224,7 +226,7 @@ class EpisodeRecorder:
         event_data = {
             "timestamp": timestamp,
             "device": "mouse",
-            "key": "scroll",
+            "key": key,
             "action": action
         }
 
@@ -321,7 +323,7 @@ class EpisodeRecorder:
         """Buffer events to reduce I/O during high-frequency operations"""
         with self.buffer_lock:
             self.event_buffer.append((channel_id, timestamp_ns, event_data))
-    
+
     def flush_event_buffer(self):
         """Flush all buffered events to MCAP file"""
         events_to_flush = []
@@ -330,7 +332,7 @@ class EpisodeRecorder:
                 return
             events_to_flush = self.event_buffer.copy()
             self.event_buffer.clear()
-            
+
         for channel_id, timestamp_ns, event_data in events_to_flush:
             self.mcap_writer.add_message(
                 channel_id=channel_id,
@@ -338,14 +340,14 @@ class EpisodeRecorder:
                 data=json.dumps(event_data).encode(),
                 publish_time=timestamp_ns
             )
-    
+
     def start_flush_timer(self):
         """Start periodic flushing of event buffer every 5 seconds"""
         if self.recording:
             self.flush_event_buffer()
             self.flush_timer = threading.Timer(5.0, self.start_flush_timer)
             self.flush_timer.start()
-    
+
     def stop_flush_timer(self):
         """Stop the periodic flush timer"""
         if self.flush_timer:
@@ -371,7 +373,7 @@ class EpisodeRecorder:
 
         # Start periodic buffer flushing
         self.start_flush_timer()
-        
+
         # Start event listeners - ensure events pass through to system
         self.mouse_listener = mouse.Listener(
             on_click=self.on_mouse_click,

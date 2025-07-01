@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 
 import argparse
+import csv
 import io
 import json
 import time
 from pathlib import Path
 
+import cv2
+import numpy as np
 from mcap.reader import make_reader
 from PIL import Image
 from pynput import keyboard, mouse
-from pynput.keyboard import Key
-from pynput.mouse import Button
 
 from .actors import CursorActor, EventActor
-from .key_map import mouse_key_map, keyboard_key_map
+from .key_map import keyboard_key_map
 
 
 class EpisodeReplayer:
@@ -23,8 +24,8 @@ class EpisodeReplayer:
         self.stop_requested = False
 
         # Initialize controllers
-        self.cursor_actor = CursorActor()
-        self.event_actor = EventActor()
+        self.cursor_actor = CursorActor(mode_of_control="position")
+        self.event_actor = EventActor(immediate=True)
         self.keyboard_controller = keyboard.Controller()
         self.mouse_hardware = mouse.Controller()
 
@@ -47,7 +48,7 @@ class EpisodeReplayer:
 
         with open(self.mcap_file, "rb") as f:
             reader = make_reader(f)
-            
+
             # Extract metadata (context)
             for metadata in reader.iter_metadata():
                 if metadata.name == "context" and "context" in metadata.metadata:
@@ -66,7 +67,7 @@ class EpisodeReplayer:
                             'type': 'input_event',
                             'timestamp': data['timestamp'],
                             'device': data['device'],
-                            'key_or_button': data['key_or_button'],
+                            'key': data['key'],
                             'action': data['action']
                         })
                     elif channel.topic == "/cursor_position":
@@ -105,56 +106,33 @@ class EpisodeReplayer:
         if self.safety_listener:
             self.safety_listener.stop()
 
-    def replay_mouse_event(self, event):
-        """Replay a mouse input event"""
+    def replay_event(self, event):
+        """Replay an input event using EventActor"""
         device = event['device']
-        key_or_button = event['key_or_button']
+        key_or_button = event['key']
         action = event['action']
 
-        if device != 'mouse':
-            return
-
         try:
-            if action == 'press':
-                if key_or_button in mouse_key_map:
-                    self.mouse_hardware.press(mouse_key_map[key_or_button])
-            elif action == 'release':
-                if key_or_button in mouse_key_map:
-                    self.mouse_hardware.release(mouse_key_map[key_or_button])
-            elif action == 'scroll':
-                scroll_direction = int(key_or_button)
-                self.mouse_hardware.scroll(0, scroll_direction)
-        except Exception as e:
-            print(f"Error replaying mouse event: {e}")
-
-    def replay_keyboard_event(self, event):
-        """Replay a keyboard input event"""
-        device = event['device']
-        key_str = event['key_or_button']
-        action = event['action']
-
-        if device != 'keyboard':
-            return
-
-        try:
-            # Convert string back to key
-            key = self.string_to_key(key_str)
-
             # Flag that we're replaying keyboard events to avoid false safety triggers
-            self.currently_replaying_keyboard = True
+            if device == 'keyboard':
+                self.currently_replaying_keyboard = True
 
             if action == 'press':
-                self.keyboard_controller.press(key)
+                self.event_actor.press(device, key_or_button)
             elif action == 'release':
-                self.keyboard_controller.release(key)
+                self.event_actor.release(device, key_or_button)
+            elif action == 'scroll':
+                self.event_actor.scroll(key_or_button)
 
-            # Small delay to ensure the event is processed before clearing flag
-            time.sleep(0.01)
-            self.currently_replaying_keyboard = False
+            # Small delay for keyboard events and clear flag
+            if device == 'keyboard':
+                time.sleep(0.01)
+                self.currently_replaying_keyboard = False
 
         except Exception as e:
-            print(f"Error replaying keyboard event: {e}")
-            self.currently_replaying_keyboard = False
+            print(f"Error replaying {device} event: {e}")
+            if device == 'keyboard':
+                self.currently_replaying_keyboard = False
 
     def string_to_key(self, key_str):
         """Convert string representation back to pynput key"""
@@ -165,13 +143,6 @@ class EpisodeReplayer:
         else:
             # Fallback for unknown keys
             return key_str
-
-    def move_mouse(self, x, y):
-        """Move mouse to specified position"""
-        try:
-            self.mouse_hardware.position = (x, y)
-        except Exception as e:
-            print(f"Error moving mouse: {e}")
 
     def start_replay(self):
         """Start replaying the episode"""
@@ -217,12 +188,9 @@ class EpisodeReplayer:
 
                     # Execute the event
                     if event['type'] == 'input_event':
-                        if event['device'] == 'mouse':
-                            self.replay_mouse_event(event)
-                        elif event['device'] == 'keyboard':
-                            self.replay_keyboard_event(event)
+                        self.replay_event(event)
                     elif event['type'] == 'cursor_position':
-                        self.move_mouse(event['x'], event['y'])
+                        self.cursor_actor.set_cursor_position(event['x'], event['y'])
 
                 if self.stop_requested:
                     print("Replay stopped by user")
@@ -255,21 +223,22 @@ class EpisodeReplayer:
         if not self.mcap_file.exists():
             raise FileNotFoundError(f"MCAP file not found: {self.mcap_file}")
 
-        # Create output directory based on mcap filename
-        output_dir = Path(self.mcap_file.stem)
-        output_dir.mkdir(exist_ok=True)
+        # Create output directory in data directory based on mcap filename
+        data_dir = Path("data")
+        output_dir = data_dir / self.mcap_file.stem
+        output_dir.mkdir(parents=True, exist_ok=True)
         print(f"Creating output directory: {output_dir}")
 
         frames = []
         cursor_data = []
         events_data = []
         context = "screen_capture"
-        
+
         print("Processing MCAP file...")
 
         with open(self.mcap_file, "rb") as f:
             reader = make_reader(f)
-            
+
             # Extract metadata (context)
             for metadata in reader.iter_metadata():
                 if metadata.name == "context" and "context" in metadata.metadata:
@@ -302,7 +271,7 @@ class EpisodeReplayer:
                         events_data.append({
                             'timestamp': timestamp_s,
                             'action': data.get('action', ''),
-                            'key': data.get('key_or_button', ''),
+                            'key': data.get('key', ''),
                             'device': data.get('device', '')
                         })
 
@@ -319,8 +288,6 @@ class EpisodeReplayer:
 
     def _generate_output_files(self, output_dir, frames, cursor_data, events_data, context):
         """Generate all output files in the specified directory"""
-        import csv
-
         print("Generating output files...")
 
         # 1. Generate screen_capture.mp4
@@ -359,20 +326,11 @@ class EpisodeReplayer:
         with open(context_path, 'w') as f:
             f.write(context)
         print(f"✓ Generated context file: {context_path}")
-        
+
         print(f"\n✓ All files generated successfully in: {output_dir}")
 
     def _create_video_from_frames(self, frames, video_path):
         """Create video file from extracted frames"""
-        try:
-            import cv2
-            import numpy as np
-        except ImportError as e:
-            raise ImportError(
-                "opencv-python is required for video creation. "
-                "Install with: pip install opencv-python"
-            ) from e
-
         # Sort frames by timestamp
         frames.sort(key=lambda x: x['timestamp'])
 
@@ -401,7 +359,7 @@ class EpisodeReplayer:
                 if i % max(1, total_frames // 10) == 0 or i % 100 == 0:
                     progress = (i / total_frames) * 100
                     print(f"  Processing frame {i+1}/{total_frames} ({progress:.1f}%)")
-                
+
                 # Convert PIL Image to OpenCV format (BGR)
                 pil_img = frame_data['image']
                 opencv_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)

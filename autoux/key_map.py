@@ -1,7 +1,6 @@
 from pynput.keyboard import Key
 from pynput.mouse import Button
 
-
 # Mouse key mappings
 mouse_key_map = {
     'L': Button.left,
