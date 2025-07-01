@@ -19,11 +19,12 @@ from .utils import Rate
 
 
 class EpisodeRecorder:
-    def __init__(self, context: str, hz: float, jpeg_quality: int = 75, verbose: bool = False):
+    def __init__(self, context: str, hz: float, jpeg_quality: int = 75, verbose: bool = False, record_screen_with_cursor: bool = False):
         self.context = context
         self.hz = hz
         self.jpeg_quality = jpeg_quality
         self.verbose = verbose
+        self.record_screen_with_cursor = record_screen_with_cursor
         self.recording = False
 
         # Initialize components
@@ -143,8 +144,11 @@ class EpisodeRecorder:
             # Get mouse position without active control threads
             mouse_pos = self.mouse_position_reader.position
 
-            # Capture screen without cursor
-            screen_img = self.screen.capture()
+            # Capture screen with or without cursor based on flag
+            if self.record_screen_with_cursor:
+                screen_img = self.screen.capture(cursor_pos=mouse_pos)
+            else:
+                screen_img = self.screen.capture()
 
             # Convert screen image to JPEG bytes
             pil_img = Image.fromarray(screen_img)
@@ -442,10 +446,12 @@ def main():
                        help="JPEG compression quality 1-100 (default: 75, lower=faster)")
     parser.add_argument("--verbose", action="store_true",
                        help="Print events as they happen")
+    parser.add_argument("--record-screen-with-cursor", action="store_true",
+                       help="Record screen with cursor visible")
 
     args = parser.parse_args()
 
-    recorder = EpisodeRecorder(args.context, args.hz, args.jpeg_quality, args.verbose)
+    recorder = EpisodeRecorder(args.context, args.hz, args.jpeg_quality, args.verbose, args.record_screen_with_cursor)
     recorder.start_recording()
 
 
