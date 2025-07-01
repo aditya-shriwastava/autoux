@@ -19,7 +19,14 @@ from .utils import Rate
 
 
 class EpisodeRecorder:
-    def __init__(self, context: str, hz: float, jpeg_quality: int = 75, verbose: bool = False, record_screen_with_cursor: bool = False):
+    def __init__(
+        self,
+        context: str,
+        hz: float,
+        jpeg_quality: int = 75,
+        verbose: bool = False,
+        record_screen_with_cursor: bool = False,
+    ):
         self.context = context
         self.hz = hz
         self.jpeg_quality = jpeg_quality
@@ -451,7 +458,13 @@ def main():
 
     args = parser.parse_args()
 
-    recorder = EpisodeRecorder(args.context, args.hz, args.jpeg_quality, args.verbose, args.record_screen_with_cursor)
+    recorder = EpisodeRecorder(
+        args.context,
+        args.hz,
+        args.jpeg_quality,
+        args.verbose,
+        args.record_screen_with_cursor,
+    )
     recorder.start_recording()
 
 

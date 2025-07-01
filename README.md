@@ -45,20 +45,21 @@ record-episode [options]
 record-episode --context "web_browsing_demo" --hz 10.0
 ```
 
-Press `Ctrl+C` to stop recording.
+Press `Alt+X` to stop recording.
 
 ### Replaying Episodes
-Replay recorded episodes or convert them to human-readable formats:
+Replay recorded episodes:
 
-#### Replay an Episode
 ```bash
 replay-episode path/to/episode.mcap
 ```
 This will replay the recorded mouse and keyboard events in real-time.
 
-#### Convert to Human-Readable Format
+### Converting to Human-Readable Format
+Convert recorded MCAP files to human-readable formats:
+
 ```bash
-replay-episode path/to/episode.mcap --dump-human-readable
+human-readable-dump path/to/episode.mcap
 ```
 This generates:
 - `screen_capture.mp4`: Video of the recorded session
@@ -72,38 +73,3 @@ This generates:
 
 **Note on Scroll Behavior:**
 replay-episode after record-episode will replay everything exactly if mouse is used for scroll, but when touchpad is used scroll might be off by a notch.
-
-## Development
-
-### Running Tests
-To run the full test suite:
-```bash
-pytest
-```
-
-To run tests with verbose output:
-```bash
-pytest -v
-```
-
-### Code Quality
-
-#### Checking for linting issues:
-```bash
-ruff check
-```
-
-#### Auto-fixing linting issues:
-```bash
-ruff check --fix
-```
-
-#### Code formatting:
-```bash
-ruff format
-```
-
-#### Running all quality checks:
-```bash
-ruff check && ruff format --check
-```
