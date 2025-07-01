@@ -2,7 +2,7 @@
 
 
 def main():
-    print("Hi!")
+    print("TODO: implement autoux!")
 
 
 if __name__ == '__main__':
