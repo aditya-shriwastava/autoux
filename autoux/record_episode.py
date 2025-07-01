@@ -37,7 +37,7 @@ class EpisodeRecorder:
 
         # Generate filename with timestamp
         timestamp = datetime.now().strftime("%Y_%m_%d|%H:%M:%S")
-        self.mcap_file = self.data_dir / f"record_{timestamp}.mcap"
+        self.mcap_file = self.data_dir / f"{timestamp}.mcap"
 
         # MCAP writer
         self.mcap_writer = None

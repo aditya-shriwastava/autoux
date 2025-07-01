@@ -109,7 +109,7 @@ class EpisodeReplayer:
     def replay_event(self, event):
         """Replay an input event using EventActor"""
         device = event['device']
-        key_or_button = event['key']
+        key = event['key']
         action = event['action']
 
         try:
@@ -118,11 +118,11 @@ class EpisodeReplayer:
                 self.currently_replaying_keyboard = True
 
             if action == 'press':
-                self.event_actor.press(device, key_or_button)
+                self.event_actor.press(device, key)
             elif action == 'release':
-                self.event_actor.release(device, key_or_button)
+                self.event_actor.release(device, key)
             elif action == 'scroll':
-                self.event_actor.scroll(key_or_button)
+                self.event_actor.scroll(key)
 
             # Small delay for keyboard events and clear flag
             if device == 'keyboard':
@@ -133,16 +133,6 @@ class EpisodeReplayer:
             print(f"Error replaying {device} event: {e}")
             if device == 'keyboard':
                 self.currently_replaying_keyboard = False
-
-    def string_to_key(self, key_str):
-        """Convert string representation back to pynput key"""
-        if key_str in keyboard_key_map:
-            return keyboard_key_map[key_str]
-        elif len(key_str) == 1:
-            return key_str
-        else:
-            # Fallback for unknown keys
-            return key_str
 
     def start_replay(self):
         """Start replaying the episode"""
