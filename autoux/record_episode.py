@@ -336,13 +336,19 @@ class EpisodeRecorder:
             self.event_buffer.append((channel_id, timestamp_ns, event_data))
 
     def flush_event_buffer(self):
-        """Flush all buffered events to MCAP file"""
+        """Flush all buffered events to MCAP file except the last one"""
         events_to_flush = []
         with self.buffer_lock:
             if not self.event_buffer:
                 return
-            events_to_flush = self.event_buffer.copy()
-            self.event_buffer.clear()
+            # Keep the last event in the buffer, don't flush it
+            if len(self.event_buffer) > 1:
+                events_to_flush = self.event_buffer[:-1].copy()
+                # Keep only the last event in the buffer
+                self.event_buffer = self.event_buffer[-1:]
+            else:
+                # If there's only one event, don't flush it
+                return
 
         for channel_id, timestamp_ns, event_data in events_to_flush:
             self.mcap_writer.add_message(
