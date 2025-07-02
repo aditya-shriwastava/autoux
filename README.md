@@ -43,7 +43,8 @@ Open a terminal in the VNC desktop and run:
 ```bash
 # Go to autoux project directory
 cd /home/autoux/autoux
-
+```
+```bash
 # Development installation (with testing tools)
 pip install -e .[dev]
 ```
