@@ -1,0 +1,18 @@
+services:
+  autoux:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: autoux
+    container_name: autoux
+    ports:
+      - "5901:5901"  # VNC port
+      - "6901:6901"  # noVNC web port
+    environment:
+      - VNC_RESOLUTION=1920x1080
+      - VNC_COL_DEPTH=24
+    volumes:
+      # Mount entire autoux directory for in-place development
+      - .:/home/autoux/autoux
+    restart: unless-stopped
+    shm_size: '2gb'  # Shared memory for graphics operations

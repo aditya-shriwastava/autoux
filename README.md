@@ -31,7 +31,6 @@ autoux
 This will start the agent.
 
 ## Episode Recording and Replay
-
 AutoUX includes tools for recording and replaying user interactions:
 
 ### Recording Episodes
@@ -73,3 +72,27 @@ This generates:
 
 **Note on Scroll Behavior:**
 replay-episode after record-episode will replay everything exactly if mouse is used for scroll, but when touchpad is used scroll might be off by a notch.
+
+## Docker Setup
+AutoUX includes a Docker setup with Ubuntu 24.04, VNC access, and a minimal XFCE desktop environment. This containerized environment is ideal for:
+- **Data collection**: Record user interactions in a consistent, isolated environment
+- **Experimentation**: Test AutoUX features without affecting your host system
+- **Development**: Develop and debug in a reproducible environment
+
+### Quick Start
+1. **Start the container:**
+```bash
+docker-compose up -d
+```
+
+2. **Access the desktop:**
+Open your web browser and navigate to:
+```
+http://localhost:6901/vnc.html
+```
+Click "Connect" - no password required!
+
+3. **Stop the container:**
+```bash
+docker-compose down
+```
