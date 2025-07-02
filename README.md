@@ -45,7 +45,15 @@ Open a terminal in the VNC desktop and run:
 cd /home/autoux/autoux
 ```
 ```bash
-# Development installation (with testing tools)
+# Create venv
+python3 -m venv .venv
+```
+```bash
+# Source venv
+source .venv/bin/activate
+```
+```bash
+# Install autoux
 pip install -e .[dev]
 ```
 
