@@ -27,6 +27,9 @@ class EpisodeReplayer:
         self.safety_listener = None
         self.currently_replaying_keyboard = False
 
+        # Track pressed keys and mouse buttons to ensure proper cleanup
+        self.pressed_keys = set()  # Stores tuples of (device, key)
+
         # Episode data
         self.events = []
         self.start_time = None
@@ -113,8 +116,12 @@ class EpisodeReplayer:
 
             if action == 'press':
                 self.event_actor.press(device, key)
+                # Track both keyboard and mouse presses
+                self.pressed_keys.add((device, key))
             elif action == 'release':
                 self.event_actor.release(device, key)
+                # Remove released keys/buttons from tracking
+                self.pressed_keys.discard((device, key))
             elif action == 'scroll':
                 self.event_actor.scroll(key)
 
@@ -125,8 +132,12 @@ class EpisodeReplayer:
 
         except Exception as e:
             print(f"Error replaying {device} event: {e}")
+            # Ensure we clean up the keyboard state even if there's an error
             if device == 'keyboard':
                 self.currently_replaying_keyboard = False
+            # If there was an error during press, remove from tracking
+            if action == 'press' and (device, key) in self.pressed_keys:
+                self.pressed_keys.discard((device, key))
 
     def start_replay(self):
         """Start replaying the episode"""
@@ -186,10 +197,26 @@ class EpisodeReplayer:
         finally:
             self.stop_replay()
 
+    def release_all_pressed_keys(self):
+        """Release all currently pressed keys and mouse buttons to prevent stuck inputs"""
+        if self.pressed_keys:
+            print(f"Releasing {len(self.pressed_keys)} pressed inputs...")
+            # Create a copy to avoid modification during iteration
+            for device, key in list(self.pressed_keys):
+                try:
+                    self.event_actor.release(device, key)
+                    print(f"Released {device} {key}")
+                except Exception as e:
+                    print(f"Error releasing {device} {key}: {e}")
+            self.pressed_keys.clear()
+
     def stop_replay(self):
         """Stop the replay session"""
         self.replaying = False
         self.stop_requested = True
+
+        # Release all pressed keys first to prevent stuck keys
+        self.release_all_pressed_keys()
 
         # Stop safety listener
         self.stop_safety_listener()
@@ -208,15 +235,22 @@ def main():
 
     args = parser.parse_args()
 
+    replayer = None
     try:
         replayer = EpisodeReplayer(args.mcap_file)
         replayer.load_episode_data()
         replayer.start_replay()
     except KeyboardInterrupt:
         print("\nOperation cancelled by user")
+        # Ensure cleanup happens on Ctrl+C
+        if replayer and replayer.replaying:
+            replayer.stop_replay()
         return 130  # Standard exit code for Ctrl+C
     except Exception as e:
         print(f"Error: {e}")
+        # Ensure cleanup happens on any error
+        if replayer and replayer.replaying:
+            replayer.stop_replay()
         return 1
 
     return 0
