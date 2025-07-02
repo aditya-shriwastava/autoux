@@ -57,13 +57,23 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-# Create user with sudo privileges
-RUN useradd -m -s /bin/bash -G sudo autoux && \
+# Create user with sudo privileges - use host user ID to avoid permission issues
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+RUN getent group ${GROUP_ID} || groupadd -g ${GROUP_ID} autoux; \
+    if id -u ${USER_ID} >/dev/null 2>&1; then \
+        usermod -l autoux -d /home/autoux -m $(getent passwd ${USER_ID} | cut -d: -f1) && \
+        groupmod -n autoux $(getent group ${GROUP_ID} | cut -d: -f1); \
+    else \
+        useradd -m -u ${USER_ID} -g ${GROUP_ID} -s /bin/bash autoux; \
+    fi && \
+    usermod -aG sudo autoux && \
     echo 'autoux:autoux' | chpasswd && \
     echo 'autoux ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # Create necessary directories
-RUN mkdir -p /home/autoux/.config/xfce4 /home/autoux/autoux
+RUN mkdir -p /home/autoux/.config/xfce4 /home/autoux/autoux && \
+    chown -R autoux:autoux /home/autoux
 
 # Create startup script
 RUN cat > /home/autoux/startup.sh << 'EOF'
