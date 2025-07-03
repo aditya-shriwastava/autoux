@@ -47,11 +47,71 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     libxkbcommon-x11-0 \
     libgbm1 \
-    # Additional tools
-    firefox \
+    # Additional libraries for Firefox
+    libdbus-glib-1-2 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    libxt6 \
+    # Additional developer tools
     vim \
+    nano \
+    htop \
+    tree \
+    jq \
+    net-tools \
+    iputils-ping \
+    # Media and productivity apps
+    vlc \
+    gedit \
+    # Screenshot and recording tools
+    flameshot \
+    kazam \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Firefox from Mozilla binary (Ubuntu 24.04 uses snap by default which doesn't work in containers)
+RUN cd /tmp && \
+    wget -O firefox.tar.xz "https://download.mozilla.org/?product=firefox-latest&os=linux64&lang=en-US" && \
+    tar -xf firefox.tar.xz -C /opt/ && \
+    ln -sf /opt/firefox/firefox /usr/bin/firefox && \
+    rm firefox.tar.xz
+
+# Create Firefox desktop file and set as default browser
+RUN cat > /usr/share/applications/firefox.desktop << 'EOF'
+[Desktop Entry]
+Version=1.0
+Name=Firefox
+Comment=Web Browser
+Keywords=Internet;WWW;Browser;Web;Explorer
+Exec=/usr/bin/firefox %u
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=firefox
+Categories=GNOME;GTK;Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;image/gif;image/jpeg;image/png;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ftp;x-scheme-handler/chrome;video/webm;application/x-xpinstall;
+StartupNotify=true
+EOF
+
+# Update XFCE web browser to use Firefox
+RUN cat > /usr/share/applications/xfce4-web-browser.desktop << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Exec=/usr/bin/firefox %u
+Icon=firefox
+StartupNotify=true
+Terminal=false
+Categories=Network;X-XFCE;X-Xfce-Toplevel;
+OnlyShowIn=XFCE;
+X-XFCE-MimeType=x-scheme-handler/http;x-scheme-handler/https;
+X-AppStream-Ignore=True
+Name=Web Browser
+Comment=Browse the web
+EOF
+
+# Update desktop database
+RUN update-desktop-database
 
 # Set locale
 RUN locale-gen en_US.UTF-8
