@@ -1,6 +1,7 @@
 #autoux
 .venv
 data
+dataset
 runs
 
 # Byte-compiled / optimized / DLL files
