@@ -2,7 +2,7 @@
 
 <h1>AutoUX 🤖</h1>
 
-> AI agent that sees your screen and acts with keyboard and mouse.
+AI agent that sees your screen and acts with keyboard and mouse.
 
 [🤗 **Open Source Dataset**](https://huggingface.co/datasets/aditya-shriwastava/autoux)
 
