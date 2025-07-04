@@ -4,7 +4,7 @@ from threading import Thread
 from pynput.keyboard import Controller as KeyboardController
 from pynput.mouse import Controller as MouseController
 
-from .key_map import keyboard_key_map, mouse_key_map
+from autoux.utils.key_map import keyboard_key_map, mouse_key_map
 
 
 class CursorActor:

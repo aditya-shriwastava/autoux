@@ -11,7 +11,7 @@ import numpy as np
 from mcap.reader import make_reader
 from PIL import Image
 
-from .actors import CursorActor, EventActor
+from autoux.utils.actors import CursorActor, EventActor
 
 
 class HumanReadableDumper:

@@ -13,9 +13,9 @@ from pynput import keyboard, mouse
 from pynput.keyboard import Key
 from pynput.mouse import Controller as MouseController
 
-from .key_map import mouse_key_map
-from .observers import ScreenObserver
-from .utils import Rate
+from autoux.utils.key_map import mouse_key_map
+from autoux.utils.observers import ScreenObserver
+from autoux.utils.miscellaneous import Rate
 
 
 class EpisodeRecorder:

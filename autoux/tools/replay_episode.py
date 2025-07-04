@@ -8,7 +8,7 @@ from pathlib import Path
 from mcap.reader import make_reader
 from pynput import keyboard, mouse
 
-from .actors import CursorActor, EventActor
+from autoux.utils.actors import CursorActor, EventActor
 
 
 class EpisodeReplayer:
